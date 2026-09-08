@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.state/
+.venv/
+.DS_Store
+# Local-only audit, recovery, and source backups. Never publish these.
+/archive/
+/repair-evidence/
+/REPAIR_TASK.md
+/REPAIR_RESULTS.md
+/PROJECT_STATE.md
+/FAILURE_LOG/
+/dist/
+/build/
+*.log
