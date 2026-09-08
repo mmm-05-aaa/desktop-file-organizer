@@ -10,7 +10,7 @@
 
 ## 开始使用
 
-需要 **Windows、Python 3.10+ 和 Tkinter**。本机实际验证环境为 Python 3.11；其他版本的 CI 验证尚待运行。基础功能不需要第三方 Python 包，也不依赖 Hermes。
+需要 **Windows、Python 3.10+ 和 Tkinter**。本机验证 Python 3.11；GitHub 托管 Windows 已验证 Python 3.10、3.11 和 3.12。基础功能不需要第三方 Python 包，也不依赖 Hermes。
 
 ### 推荐：先运行隔离演示
 
@@ -138,6 +138,8 @@ python -B -m unittest discover -s tests -v
 
 采用 **MIT**，版权署名为 GitHub 账号 `mmm-05-aaa`。
 
-已准备 Windows GitHub Actions 配置（Python 3.10 / 3.11 / 3.12），但尚未在托管环境执行，不展示绿色 CI 徽章或声称 CI 已通过。当前本机与独立干净源码目录均为 63 项测试通过。
+GitHub 托管 Windows CI 的 **Python 3.10 / 3.11 / 3.12 均为 63 项测试通过，无跳过项**。本机与独立干净源码目录也均为 63 项通过。
+
+[已核验 CI 运行及日志](https://github.com/mmm-05-aaa/desktop-file-organizer/actions/runs/34250348095)。
 
 当前阶段为私有仓库验证，尚未公开发布或创建 Release。公开前须完成 CI 验证并取得维护者确认。发布前检查见 `RELEASE_CHECKLIST.md`。
