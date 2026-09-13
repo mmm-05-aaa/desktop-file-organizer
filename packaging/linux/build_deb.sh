@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD="$ROOT/build/linux"
 DIST="$ROOT/dist"
 ARCH="$(dpkg --print-architecture)"
-ASSET_VERSION="${VERSION//~/.}"
+ASSET_VERSION="${VERSION//\~/.}"
 ASSET_NAME="desktop-organizer_${ASSET_VERSION}_${ARCH}.deb"
 
 rm -rf "$BUILD"
