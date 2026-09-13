@@ -20,6 +20,15 @@ class OrganizerTests(unittest.TestCase):
         organizer.DESKTOP, organizer.DESTINATION, organizer.STATE_DIR, organizer.LOG_FILE = self.old
         self.tmp.cleanup()
 
+    def test_records_and_journal_store_only_required_file_metadata(self):
+        source = self.root / "notes.txt"
+        source.write_text("notes", encoding="utf-8")
+        records = organizer.scan()
+        self.assertTrue(records)
+        self.assertEqual(set(records[0].__dict__), {"source", "target", "category", "confidence", "reason", "warning", "size", "mtime_ns"})
+        journal = organizer.execute(records)
+        self.assertEqual(set(journal["moves"][0]), {"source", "target", "category", "confidence", "reason", "warning", "size", "mtime_ns", "identity", "phase"})
+
     def test_html_is_classified_as_webpage(self):
         (self.root / "demo.html").write_text("<h1>demo</h1>", encoding="utf-8")
         record = organizer.scan()[0]

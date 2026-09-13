@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import hashlib
+import base64
 import json
 import os
 import re
+import secrets
 import tempfile
 import threading
 import time
@@ -105,7 +106,6 @@ class FileRecord:
     warning: str = ""
     size: int = 0
     mtime_ns: int = 0
-    fingerprint: str = ""
     @property
     def source_path(self): return Path(self.source)
     @property
@@ -119,7 +119,7 @@ def _root_key(root, platform_name=None):
 
 def root_state_dir(root=None):
     root = Path(root or DESKTOP).resolve()
-    key = hashlib.sha256(_root_key(root).encode()).hexdigest()[:24]
+    key = base64.urlsafe_b64encode(_root_key(root).encode()).decode().rstrip('=')
     return STATE_DIR / key
 
 def _active_log():
@@ -148,13 +148,6 @@ def _archive_current(log, data, root):
             raise RuntimeError('历史记录冲突，禁止覆盖')
     else:
         atomic_write_json(destination, data)
-
-def full_fingerprint(path):
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""): digest.update(chunk)
-    return digest.hexdigest()
-quick_fingerprint = full_fingerprint
 
 def atomic_write_json(path, payload):
     path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
@@ -287,8 +280,8 @@ def scan():
         category, confidence, reason, warning = classified[item]; directory = root / category
         if len(grouped[(category, related_key(item))]) > 1 and related_key(item): directory /= related_key(item)[:40]
         try:
-            stat = item.stat(); fingerprint = full_fingerprint(item)
-            result.append(FileRecord(str(item), str(unique_target(directory / item.name)), category, confidence, reason, warning, stat.st_size, stat.st_mtime_ns, fingerprint))
+            stat = item.stat()
+            result.append(FileRecord(str(item), str(unique_target(directory / item.name)), category, confidence, reason, warning, stat.st_size, stat.st_mtime_ns))
         except OSError as error: result.append(FileRecord(str(item), str(directory / item.name), category, 0, reason, f"无法读取文件：{type(error).__name__}"))
     return result
 
@@ -298,7 +291,7 @@ def validate_record(record, root=None):
     if source.is_symlink() or target.is_symlink() or target.exists(): raise RuntimeError("路径不安全或目标已存在")
     if not source.is_file(): raise RuntimeError(f"源文件不存在：{source.name}")
     stat = source.stat()
-    if (stat.st_size, stat.st_mtime_ns, full_fingerprint(source)) != (record.size, record.mtime_ns, record.fingerprint): raise RuntimeError(f"源文件在扫描后发生变化：{source.name}")
+    if (stat.st_size, stat.st_mtime_ns) != (record.size, record.mtime_ns): raise RuntimeError(f"源文件在扫描后发生变化：{source.name}")
 
 @contextmanager
 def _exclusive_lock(path):
@@ -342,16 +335,16 @@ def _matches_entry(path, entry):
     path = Path(path)
     return (path.is_file() and _identity(path) == entry['identity']
             and path.stat().st_size == entry['size']
-            and full_fingerprint(path) == entry['fingerprint'])
+            and path.stat().st_mtime_ns == entry['mtime_ns'])
 
 
 def _load_journal(log, root):
     _reject_links(log)
     data = json.loads(log.read_text(encoding='utf-8'))
-    if (not isinstance(data, dict) or data.get('version') != 4
+    if (not isinstance(data, dict) or data.get('version') != 5
             or data.get('root') != str(root)
             or not isinstance(data.get('transaction'), str)
-            or not re.fullmatch(r'[0-9a-f]{64}', data['transaction'])
+            or not re.fullmatch(r'[0-9a-f]{32}', data['transaction'])
             or not isinstance(data.get('created_ns'), int)
             or data.get('status') not in ('prepared', 'moving', 'committed', 'recovery-required')
             or not isinstance(data.get('moves'), list)):
@@ -368,7 +361,7 @@ def _load_journal(log, root):
                 or not isinstance(identity, list) or len(identity) != 2
                 or not all(isinstance(v, int) for v in identity)
                 or not isinstance(entry.get('size'), int)
-                or not re.fullmatch(r'[0-9a-f]{64}', entry.get('fingerprint', ''))):
+                or not isinstance(entry.get('mtime_ns'), int)):
             raise RuntimeError('事务条目路径、身份或状态不安全')
         for path in (source, target):
             key = _path_key(path)
@@ -469,7 +462,7 @@ def execute(moves):
                 entries.append(entry)
             if previous:
                 _archive_current(previous_log, previous, root)
-            data = {'version': 4, 'transaction': hashlib.sha256(os.urandom(32)).hexdigest(),
+            data = {'version': 5, 'transaction': secrets.token_hex(16),
                     'created_ns': max(time.time_ns(), previous['created_ns'] + 1 if previous else 0),
                     'root': str(root), 'status': 'prepared', 'moves': entries}
             _persist(log, data)  # If this fails, no file was moved and no fallback overwrites state.
