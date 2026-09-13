@@ -6,7 +6,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD="$ROOT/build/linux"
 DIST="$ROOT/dist"
 ARCH="$(dpkg --print-architecture)"
-PACKAGE="desktop-organizer_${VERSION}_${ARCH}"
+ASSET_VERSION="${VERSION//~/.}"
+ASSET_NAME="desktop-organizer_${ASSET_VERSION}_${ARCH}.deb"
 
 rm -rf "$BUILD"
 mkdir -p "$BUILD/pyinstaller" "$BUILD/app" "$BUILD/pkg/DEBIAN" \
@@ -51,5 +52,5 @@ Categories=Utility;FileTools;
 EOF
 chmod 0644 "$BUILD/pkg/usr/share/applications/desktop-organizer.desktop"
 
-dpkg-deb --build --root-owner-group "$BUILD/pkg" "$DIST/$PACKAGE.deb"
-dpkg-deb --info "$DIST/$PACKAGE.deb"
+dpkg-deb --build --root-owner-group "$BUILD/pkg" "$DIST/$ASSET_NAME"
+dpkg-deb --info "$DIST/$ASSET_NAME"

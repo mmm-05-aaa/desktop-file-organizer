@@ -55,7 +55,7 @@ jobs:
         run: bash packaging/linux/build_deb.sh 0.1.0~alpha
       - name: Install and smoke-test Debian package
         run: |
-          sudo dpkg -i dist/desktop-organizer_0.1.0~alpha_amd64.deb
+          sudo dpkg -i dist/desktop-organizer_0.1.0.alpha_amd64.deb
           test "$(dpkg-query -W -f='${Status}' desktop-organizer)" = 'install ok installed'
           test -x /opt/desktop-organizer/desktop-file-organizer
           test -f /usr/share/applications/desktop-organizer.desktop
