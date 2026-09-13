@@ -46,11 +46,11 @@ class TransactionAcceptance(unittest.TestCase):
         self.assertEqual(s.read_bytes(),b'A'); self.assertFalse((self.base/'outside.txt').exists())
     def test_move_failure_rolls_back_prior_moves(self):
         for name in ['a.txt','b.txt']: (self.root/name).write_text(name)
-        records=organizer.scan(); rename=os.rename
+        records=organizer.scan(); rename=organizer._rename_no_replace
         def fail_second(src,dst,*args,**kwargs):
             if Path(src)==self.root/'b.txt': raise PermissionError('synthetic locked file')
             return rename(src,dst,*args,**kwargs)
-        with mock.patch.object(os,'rename',fail_second):
+        with mock.patch.object(organizer,'_rename_no_replace',fail_second):
             with self.assertRaises(RuntimeError): organizer.execute(records)
         for name in ['a.txt','b.txt']: self.assertEqual((self.root/name).read_text(),name)
     def test_interrupted_move_is_recoverable_in_new_process(self):
@@ -58,11 +58,11 @@ class TransactionAcceptance(unittest.TestCase):
         script="""import os,pathlib,organizer
 organizer.DESKTOP=pathlib.Path(os.environ['TEST_ROOT'])
 organizer.STATE_DIR=pathlib.Path(os.environ['TEST_STATE'])
-original=os.rename
+original=organizer._rename_no_replace
 def interrupt(src,dst,*args,**kwargs):
  original(src,dst,*args,**kwargs)
  os._exit(23)
-os.rename=interrupt
+organizer._rename_no_replace=interrupt
 organizer.execute(organizer.scan())
 """
         env=os.environ.copy(); env['TEST_ROOT']=str(self.root); env['TEST_STATE']=str(self.base/'state')

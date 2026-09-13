@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,6 +6,7 @@ from unittest import mock
 import organizer
 
 class ClassificationAndPaths(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows known-folder API')
     def test_redirected_known_folder_is_used(self):
         self.assertTrue(hasattr(organizer,'get_desktop_path'))
         with tempfile.TemporaryDirectory() as td:

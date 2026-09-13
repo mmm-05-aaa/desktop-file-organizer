@@ -76,6 +76,7 @@ with organizer._exclusive_lock(pathlib.Path(sys.argv[1])):
         finally:
             proc.communicate('\n',timeout=10)
         organizer.execute(organizer.scan()); self.assertEqual(organizer.undo(),(1,[]))
+    @unittest.skipUnless(os.name == 'nt', 'junctions are Windows-only')
     def test_target_junction_refused(self):
         outside=self.base/'outside'; outside.mkdir()
         link=self.root/'文本'
@@ -90,10 +91,10 @@ with organizer._exclusive_lock(pathlib.Path(sys.argv[1])):
         organizer.execute(organizer.scan())
         script="""import os,pathlib,organizer,sys
 organizer.DESKTOP=pathlib.Path(sys.argv[1]); organizer.STATE_DIR=pathlib.Path(sys.argv[2])
-real=os.rename
+real=organizer._rename_no_replace
 def die(src,dst):
  real(src,dst); os._exit(24)
-os.rename=die
+organizer._rename_no_replace=die
 organizer.undo()
 """
         result=subprocess.run([sys.executable,'-B','-c',script,str(self.root),str(self.base/'state')],capture_output=True,timeout=15)

@@ -28,7 +28,6 @@ UninstallDisplayName=Desktop Organizer
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Files]
 Source: "{#BuildDir}\desktop-file-organizer.exe"; DestDir: "{app}"; Flags: ignoreversion
