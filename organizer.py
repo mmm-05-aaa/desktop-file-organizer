@@ -14,7 +14,11 @@ import tkinter as tk
 from queue import Queue, Empty
 from contextlib import contextmanager
 import stat as stat_module
-import msvcrt
+import sys
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
 
 def _windows_desktop():
     """Query Known Folder API; never assumes a Desktop basename for redirected folders."""
@@ -39,6 +43,27 @@ def _windows_desktop():
         free(ctypes.cast(value, ctypes.c_void_p))
 
 
+def _posix_desktop(environment=None, home=None):
+    """Resolve the XDG desktop without assuming that its name is Desktop."""
+    environment = os.environ if environment is None else environment
+    home = Path(home or environment.get('HOME') or Path.home()).expanduser()
+    config_home = Path(environment.get('XDG_CONFIG_HOME', home / '.config')).expanduser()
+    config = config_home / 'user-dirs.dirs'
+    if config.is_file():
+        for line in config.read_text(encoding='utf-8', errors='replace').splitlines():
+            match = re.fullmatch(r'\s*XDG_DESKTOP_DIR\s*=\s*"([^"]+)"\s*', line)
+            if match:
+                value = match.group(1).replace('$HOME', str(home))
+                path = Path(value).expanduser()
+                if path.is_absolute() and path.is_dir():
+                    return Path(os.path.abspath(path))
+                break
+    fallback = home / 'Desktop'
+    if fallback.is_dir():
+        return Path(os.path.abspath(fallback))
+    raise RuntimeError('Linux 桌面目录不存在；请显式设置 DESKTOP_ORGANIZER_ROOT')
+
+
 def get_desktop_path(environment=None):
     environment = os.environ if environment is None else environment
     if 'DESKTOP_ORGANIZER_ROOT' in environment:
@@ -49,12 +74,19 @@ def get_desktop_path(environment=None):
         if not path.is_absolute() or not path.is_dir():
             raise RuntimeError('DESKTOP_ORGANIZER_ROOT 必须是存在的绝对目录路径')
         return Path(os.path.abspath(path))
-    return _windows_desktop()
+    return _windows_desktop() if os.name == 'nt' else _posix_desktop(environment)
+
+
+def _state_dir(environment=None):
+    environment = os.environ if environment is None else environment
+    if os.name == 'nt':
+        return Path(environment.get('LOCALAPPDATA', Path.home() / 'AppData/Local')) / 'DesktopOrganizer'
+    return Path(environment.get('XDG_STATE_HOME', Path.home() / '.local/state')).expanduser() / 'desktop-organizer'
 
 
 DESKTOP = get_desktop_path()
 DESTINATION = DESKTOP
-STATE_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "DesktopOrganizer"
+STATE_DIR = _state_dir()
 LOG_FILE = STATE_DIR / "last_move.json"
 CATEGORIES = {"文档": {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".rtf"}, "文本": {".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml"}, "网页": {".html", ".htm", ".css", ".js"}, "图片": {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".tif", ".tiff"}, "压缩包": {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"}, "视频": {".mp4", ".mov", ".avi", ".mkv", ".webm"}, "音频": {".mp3", ".wav", ".m4a", ".flac", ".aac"}}
 SOFTWARE_SUFFIXES = {".exe", ".msi", ".dmg", ".pkg", ".lnk", ".url"}
@@ -80,9 +112,14 @@ class FileRecord:
     def target_path(self): return Path(self.target)
 Move = FileRecord
 
+def _root_key(root, platform_name=None):
+    value = str(root)
+    return value.casefold() if (platform_name or os.name) == 'nt' else value
+
+
 def root_state_dir(root=None):
     root = Path(root or DESKTOP).resolve()
-    key = hashlib.sha256(str(root).casefold().encode()).hexdigest()[:24]
+    key = hashlib.sha256(_root_key(root).encode()).hexdigest()[:24]
     return STATE_DIR / key
 
 def _active_log():
@@ -154,6 +191,32 @@ def _strict_inside(path, root):
         return bool(relative.parts) and not any(':' in part for part in relative.parts)
     except (ValueError, OSError, RuntimeError):
         return False
+
+
+def _path_key(path):
+    value = str(_absolute(path))
+    return value.casefold() if os.name == 'nt' else value
+
+
+def _rename_no_replace(source, target):
+    """Move one regular file without ever replacing an existing target."""
+    source, target = os.fspath(source), os.fspath(target)
+    if os.name == 'nt':
+        os.rename(source, target)
+        return
+    if not sys.platform.startswith('linux'):
+        raise RuntimeError('当前仅支持 Windows 和 Linux 本地文件系统')
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, 'renameat2', None)
+    if renameat2 is None:
+        raise RuntimeError('当前 Linux C 库缺少原子不覆盖移动支持')
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p,
+                          ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    if renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), target)
 
 
 def _validate_root(root):
@@ -252,15 +315,21 @@ def _exclusive_lock(path):
             os.write(fd, b'0')
         os.lseek(fd, 0, os.SEEK_SET)
         try:
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            if os.name == 'nt':
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             locked = True
         except OSError as error:
             raise RuntimeError('另一个实例正在整理或撤销，请稍后重试') from error
         yield
     finally:
         if locked:
-            os.lseek(fd, 0, os.SEEK_SET)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            if os.name == 'nt':
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
 
 
@@ -302,7 +371,7 @@ def _load_journal(log, root):
                 or not re.fullmatch(r'[0-9a-f]{64}', entry.get('fingerprint', ''))):
             raise RuntimeError('事务条目路径、身份或状态不安全')
         for path in (source, target):
-            key = str(_absolute(path)).casefold()
+            key = _path_key(path)
             if key in seen:
                 raise RuntimeError('事务包含重复路径')
             seen.add(key)
@@ -343,10 +412,10 @@ def _recover(log, data, root):
                 continue
             entry['phase'] = 'undo-intent'
             _persist(log, data)
-            # On Windows os.rename is atomic and fails if destination exists.
+            # The platform helper is atomic and never replaces a competitor.
             if not _strict_inside(source, root) or not _strict_inside(target, root):
                 raise RuntimeError('恢复路径发生变化')
-            os.rename(target, source)
+            _rename_no_replace(target, source)
             restored += 1
             entry['phase'] = 'restored'
             _persist(log, data)
@@ -391,7 +460,7 @@ def execute(moves):
                 if _absolute(move.source).parent != root or _absolute(move.target).parent == root:
                     raise RuntimeError('只允许根目录文件移动到其分类子目录')
                 for path in (move.source, move.target):
-                    key = str(_absolute(path)).casefold()
+                    key = _path_key(path)
                     if key in seen:
                         raise RuntimeError('计划包含重复路径')
                     seen.add(key)
@@ -415,7 +484,7 @@ def execute(moves):
                     entry['phase'] = 'intent'
                     data['status'] = 'moving'
                     _persist(log, data)
-                    os.rename(move.source, move.target)
+                    _rename_no_replace(move.source, move.target)
                     entry['phase'] = 'moved'
                     _persist(log, data)
                 data['status'] = 'committed'
@@ -584,5 +653,18 @@ class App(tk.Tk):
         super().destroy()
 
 
+def main(argv=None):
+    argv = list(argv or [])
+    unknown = [argument for argument in argv if argument != '--smoke-test']
+    if unknown:
+        raise SystemExit(f'未知参数：{unknown[0]}')
+    app = App()
+    if '--smoke-test' in argv:
+        app.after_idle(app.destroy)
+    app.mainloop()
+    return 0
+
+
 if __name__ == '__main__':
-    App().mainloop()
+    import sys
+    raise SystemExit(main(sys.argv[1:]))

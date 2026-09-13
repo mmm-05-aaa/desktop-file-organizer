@@ -1,8 +1,8 @@
 # 使用指南
 
-一个本地运行的 Windows 桌面文件整理工具。**先扫描、看预览、确认后再移动；支持撤销与中断恢复。** 文档、图片、音视频、压缩包和网页分类是基础能力，PDF 主题识别是可选增强，不限定科研用途。
+一个本地运行的 Windows/Linux 桌面文件整理工具。**先扫描、看预览、确认后再移动；支持撤销与中断恢复。** 文档、图片、音视频、压缩包和网页分类是基础能力，PDF 主题识别是可选增强，不限定科研用途。
 
-> 当前是修复候选版，不是生产级备份软件。重要文件请先备份，首次使用先运行隔离演示。尚未对外发布。
+> 当前是公开 Alpha 候选版，不是生产级备份软件。重要文件请先备份，首次使用先运行隔离演示。
 
 ![使用合成文件的真实界面预览](../screenshots/preview.png)
 
@@ -10,7 +10,9 @@
 
 ## 开始使用
 
-需要 **Windows、Python 3.10+ 和 Tkinter**。本机验证 Python 3.11；GitHub 托管 Windows 已验证 Python 3.10、3.11 和 3.12。基础功能不需要第三方 Python 包，也不依赖 Hermes。
+安装包不需要系统 Python。源码运行需要 **Windows 或 Linux、Python 3.10+ 和 Tkinter**；GitHub 托管 Windows 与 Ubuntu 已验证 Python 3.10、3.11 和 3.12。基础功能不需要第三方 Python 包，也不依赖 Hermes。
+
+Windows 使用 Release 中的 `.exe` 安装程序；Ubuntu/Debian x64 使用 `.deb`。Linux 安装后从应用菜单启动，状态记录位于 `${XDG_STATE_HOME:-~/.local/state}/desktop-organizer/`。
 
 ### 推荐：先运行隔离演示
 
@@ -79,7 +81,7 @@ python -m pip install pypdf
 ## 事务、撤销和中断恢复
 
 - 移动前先原子保存事务意图，逐步更新每个文件的状态。
-- 使用 Windows 不覆盖目标的重命名操作；不依赖“先判断不存在再覆盖”的实现。
+- Windows 使用不覆盖目标的重命名；Linux 使用 `renameat2(RENAME_NOREPLACE)` 原子移动，竞争目标不会被覆盖。
 - 普通执行故障尝试回滚；回滚失败或日志写入持续失败时保留记录并如实提示。
 - 再次启动后，可用“撤销 / 恢复”处理未完成事务，恢复前仍要确认。
 - 连续成功整理会保留历史记录，支持从最近一笔开始逐笔撤销。
@@ -92,6 +94,8 @@ python -m pip install pypdf
 ```text
 %LOCALAPPDATA%\DesktopOrganizer\<root-id>\
 ```
+
+Linux 状态目录为 `${XDG_STATE_HOME:-~/.local/state}/desktop-organizer/<root-id>/`。
 
 演示目录与真实桌面不共享撤销记录。记录包含本机文件路径，**不能上传到公开仓库**。旧版本项目里的 `.state` 不会自动迁移或删除；保留它，确认旧记录中的操作已处理后再人工决定如何处置。未知版本、损坏或越界的日志拒绝自动恢复。
 
@@ -127,7 +131,7 @@ python -B -m unittest discover -s tests -v
 
 ## 安全边界与已知限制
 
-- 仅支持 Windows 本地文件操作，不提供网络盘、跨卷移动或云同步协作保证。
+- 仅支持 Windows/Linux 本地同文件系统操作，不提供网络盘、跨卷移动或云同步协作保证。
 - 链接、目录联接及其他 reparse 路径保守拒绝；部分 OneDrive 按需文件也可能需要先复制到普通本地目录。桌面重定向 API 支持不等于所有云盘行为均已验证。
 - 不防御拥有同一 Windows 用户权限、同时恶意替换父目录或篡改状态的进程；整理时不要让其他程序同时重构目标目录。
 - 已测试进程中断恢复，不宣称已经实测物理断电、磁盘硬件故障或所有文件系统的持久性。
@@ -142,4 +146,4 @@ GitHub 托管 Windows CI 的 **Python 3.10 / 3.11 / 3.12 均为 63 项测试通�
 
 [已核验 CI 运行及日志](https://github.com/mmm-05-aaa/desktop-file-organizer/actions/runs/34250348095)。
 
-当前阶段为私有仓库验证，尚未公开发布或创建 Release。公开前须完成 CI 验证并取得维护者确认。发布前检查见 [发布前检查表](../RELEASE_CHECKLIST.md)。
+当前仓库已公开；安装包通过跨平台 CI 后发布为 `v0.1.0-alpha`。发布检查见 [发布前检查表](../RELEASE_CHECKLIST.md)。

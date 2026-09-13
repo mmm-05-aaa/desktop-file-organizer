@@ -46,22 +46,18 @@ class SupervisorAcceptance(unittest.TestCase):
         source.write_bytes(b'SOURCE')
         plan = organizer.scan()
         target = Path(plan[0].target)
-        import os
-        original_rename, original_replace = os.rename, os.replace
+        original_rename = organizer._rename_no_replace
         calls = []
 
-        def competing_operation(operation):
-            def call(src, dst, *args, **kwargs):
-                if Path(src) == source and Path(dst) == target:
-                    calls.append(True)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    if not target.exists():
-                        target.write_bytes(b'COMPETITOR')
-                return operation(src, dst, *args, **kwargs)
-            return call
+        def competing_operation(src, dst):
+            if Path(src) == source and Path(dst) == target:
+                calls.append(True)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if not target.exists():
+                    target.write_bytes(b'COMPETITOR')
+            return original_rename(src, dst)
 
-        with mock.patch.object(os, 'rename', competing_operation(original_rename)), \
-             mock.patch.object(os, 'replace', competing_operation(original_replace)):
+        with mock.patch.object(organizer, '_rename_no_replace', competing_operation):
             with self.assertRaises(Exception):
                 organizer.execute(plan)
         self.assertTrue(calls, 'Update fault injection if the move primitive changes')

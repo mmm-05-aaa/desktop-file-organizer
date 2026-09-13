@@ -2,16 +2,17 @@
 
 **先看预览，再确认移动；需要时，撤销回原位。**
 
-一个本地运行的 Windows 文件整理工具，提供原生窗口和实验性 Web 界面。面向散落的文档、图片、音视频、网页和压缩包，不是资源管理器替代品，也不需要先编写规则配置。
+一个本地运行的 Windows/Linux 文件整理工具，提供原生窗口和实验性 Web 界面。面向散落的文档、图片、音视频、网页和压缩包，不是资源管理器替代品，也不需要先编写规则配置。
 
 [![Windows tests](https://github.com/mmm-05-aaa/desktop-file-organizer/actions/workflows/windows-tests.yml/badge.svg?branch=main)](https://github.com/mmm-05-aaa/desktop-file-organizer/actions/workflows/windows-tests.yml)
-[MIT 许可证](LICENSE) · Windows · Python 3.10–3.12 已测试
+[![Cross-platform packages](https://github.com/mmm-05-aaa/desktop-file-organizer/actions/workflows/cross-platform-packages.yml/badge.svg?branch=main)](https://github.com/mmm-05-aaa/desktop-file-organizer/actions/workflows/cross-platform-packages.yml)
+[MIT 许可证](LICENSE) · Windows/Linux x64 · Python 3.10–3.12 已测试
 
 ![桌面整理器作品封面，内嵌真实软件界面](screenshots/portfolio-cover.png)
 
 [快速开始](#快速开始) · [效果展示](#效果展示) · [使用指南](docs/USER_GUIDE.md) · [实现与测试](docs/ARCHITECTURE.md) · [反馈问题](https://github.com/mmm-05-aaa/desktop-file-organizer/issues/new/choose)
 
-> **候选版，尚无正式 Release 或独立 EXE 安装包。** 当前处于私有仓库验证阶段。重要文件请先备份，首次使用先运行合成演示；“可撤销”不等于备份。
+> **Alpha 候选版。** 提供 Windows x64 安装程序和 Ubuntu/Debian x64 `.deb`；重要文件请先备份，首次使用先运行合成演示；“可撤销”不等于备份。
 
 ## 它解决什么问题
 
@@ -27,6 +28,15 @@
 
 ## 快速开始
 
+### 安装包
+
+在 [Releases](https://github.com/mmm-05-aaa/desktop-file-organizer/releases) 下载：
+
+- Windows x64：`DesktopOrganizer-0.1.0-alpha-Windows-x64-Setup.exe`
+- Ubuntu/Debian x64：`desktop-organizer_0.1.0~alpha_amd64.deb`
+
+Linux 安装后可从应用菜单打开“桌面整理器”，或运行 `desktop-organizer`。`.deb` 在 Ubuntu 24.04 完成安装、真实 Tk 窗口启动和卸载验证；其他发行版暂未承诺。
+
 ### 1. 获取源码
 
 在仓库页面选择 **Code → Download ZIP** 并解压，或在 **PowerShell** 中运行（需要 Git 和仓库访问权限）：
@@ -38,7 +48,7 @@ cd desktop-file-organizer
 
 ### 2. 检查环境
 
-需要 **Windows、Python 3.10+ 和 Tkinter**，基础功能无第三方 Python 依赖。已在 Windows CI 验证 Python 3.10 / 3.11 / 3.12；未承诺其他系统或 Python 版本的兼容性。
+源码运行需要 **Windows 或 Linux、Python 3.10+ 和 Tkinter**，基础功能无第三方 Python 依赖。已在 Windows 和 Ubuntu CI 验证 Python 3.10 / 3.11 / 3.12。
 
 在 **PowerShell** 中运行：
 
@@ -52,7 +62,7 @@ python -c "import tkinter; print('Tkinter available')"
 双击 **`run_demo.bat`**，或在 **PowerShell、项目目录**运行：
 
 ```powershell
-.un_demo.bat
+./run_demo.bat
 ```
 
 它只扫描项目的 `demo-data`，不扫描真实桌面。查看预览后点击“执行安全项目”，体验完成后用“撤销 / 恢复上次整理”恢复。演示目录包含故意损坏的 PDF，用于展示警告和保留行为。

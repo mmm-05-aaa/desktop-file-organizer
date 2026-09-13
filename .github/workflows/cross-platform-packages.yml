@@ -1,0 +1,105 @@
+name: Cross-platform packages
+'on':
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Tk and virtual display
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb xauth
+      - name: Run Linux tests
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONUTF8: '1'
+          DESKTOP_ORGANIZER_ROOT: ${{ github.workspace }}/demo-data
+        run: python -B -m unittest discover -s tests -v
+      - name: Open and close the real Tk window
+        env:
+          DESKTOP_ORGANIZER_ROOT: ${{ github.workspace }}/demo-data
+        run: xvfb-run -a python organizer.py --smoke-test
+
+  linux-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: linux-tests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Install build and runtime test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb xauth
+          python -m pip install pyinstaller==6.16.0
+      - name: Build Debian package
+        run: bash packaging/linux/build_deb.sh 0.1.0~alpha
+      - name: Install and smoke-test Debian package
+        run: |
+          sudo dpkg -i dist/desktop-organizer_0.1.0~alpha_amd64.deb
+          test "$(dpkg-query -W -f='${Status}' desktop-organizer)" = 'install ok installed'
+          test -x /opt/desktop-organizer/desktop-file-organizer
+          test -f /usr/share/applications/desktop-organizer.desktop
+          mkdir -p "$RUNNER_TEMP/home/Desktop" "$RUNNER_TEMP/state"
+          xvfb-run -a env HOME="$RUNNER_TEMP/home" XDG_STATE_HOME="$RUNNER_TEMP/state" desktop-organizer --smoke-test
+          sudo dpkg -P desktop-organizer
+          ! dpkg-query -W desktop-organizer 2>/dev/null
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+  windows-package:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Install PyInstaller
+        run: python -m pip install pyinstaller==6.16.0
+      - name: Build Windows installer
+        shell: powershell
+        run: ./packaging/windows/build.ps1 -Version 0.1.0-alpha
+      - name: Install and smoke-test Windows package
+        shell: powershell
+        run: |
+          $installer = (Resolve-Path 'dist/*-Setup.exe').Path
+          $install = Join-Path $env:RUNNER_TEMP 'DesktopOrganizerInstall'
+          $root = Join-Path $env:RUNNER_TEMP 'DesktopRoot'
+          New-Item $root -ItemType Directory -Force | Out-Null
+          Start-Process $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$install" -Wait
+          $exe = Join-Path $install 'desktop-file-organizer.exe'
+          if (-not (Test-Path $exe)) { throw 'Installed executable missing' }
+          $env:DESKTOP_ORGANIZER_ROOT = $root
+          $process = Start-Process $exe -ArgumentList '--smoke-test' -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Smoke test failed: $($process.ExitCode)" }
+          $uninstall = Join-Path $install 'unins000.exe'
+          Start-Process $uninstall -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+          if (Test-Path $exe) { throw 'Uninstall did not remove executable' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-installer
+          path: dist/*-Setup.exe
+          if-no-files-found: error
