@@ -32,8 +32,8 @@
 
 在 [Releases](https://github.com/mmm-05-aaa/desktop-file-organizer/releases) 下载：
 
-- Windows x64：`DesktopOrganizer-0.1.0-alpha-Windows-x64-Setup.exe`
-- Ubuntu/Debian x64：`desktop-organizer_0.1.0~alpha_amd64.deb`
+- Windows x64：`DesktopOrganizer-0.1.1-alpha-Windows-x64-Setup.exe`
+- Ubuntu/Debian x64：`desktop-organizer_0.1.1.alpha_amd64.deb`
 
 Linux 安装后可从应用菜单打开“桌面整理器”，或运行 `desktop-organizer`。`.deb` 在 Ubuntu 24.04 完成安装、真实 Tk 窗口启动和卸载验证；其他发行版暂未承诺。
 
